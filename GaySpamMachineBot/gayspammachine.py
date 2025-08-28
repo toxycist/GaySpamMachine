@@ -1,22 +1,26 @@
 import telebot
 import dotenv
-from os import getenv
+from os import getenv, path
 import requests
 from bs4 import BeautifulSoup
 import random
 import schedule
 import time
 import threading
+import json
 
 dotenv.load_dotenv()
 TOKEN = getenv('TOKEN')
 bot = telebot.TeleBot(TOKEN)
 
-subbed = False
+DB_FILE = path.join(path.dirname(path.abspath(__file__)), "user_states.json")
+data = {}
+with open(DB_FILE, "r") as file:
+    data = json.load(file)
 
 @bot.message_handler(commands = ['start'])
 def start(message):
-    bot.send_message(message.chat.id, """Привет, Тонечка ! 🫰💜\n----------\nЭтот бот был создан специально для тебя, чтобы ты с наибольшими удобствами занималась своим любимым делом - читала гейские манхвы)\n----------\nКоманды:\n/nov - Посмотреть новинки этого прекрасного жанра\n/pop - Посмотреть самые популярные манхвы\n/top - Посмотреть манхвы с самым высоким рейтингом\n/rand - Посмотреть случайный тайтл\n/sub - Подписаться на ежедневную рассылку случайной гей манхвы\n/unsub - Отписаться от ежедневной рассылки случайной гей манхвы\n----------\nПриятного пользования ! 🫶""")
+    bot.send_message(message.chat.id, """Привет, Тонечка ! 🫰💜\n----------\nЭтот бот был создан специально для тебя, чтобы ты с наибольшими удобствами занималась своим любимым делом - читала гейские манхвы)\n----------\nКоманды:\n/start - Запустить бота\n/nov - Посмотреть новинки этого прекрасного жанра\n/pop - Посмотреть самые популярные манхвы\n/top - Посмотреть манхвы с самым высоким рейтингом\n/rand - Посмотреть случайный тайтл\n/sub - Подписаться на ежедневную рассылку случайной гей манхвы\n/unsub - Отписаться от ежедневной рассылки случайной гей манхвы\n----------\nПриятного пользования ! 🫶""")
 
 def get_first_five_manhwas(url):
     response = requests.get(url)
@@ -123,27 +127,35 @@ def run_scheduler():
         schedule.run_pending()
         time.sleep(10)
 
+def is_subscribed(user_id):
+    return data.get(str(user_id), {}).get("subscribed", False)
+
+def update_user(user_id, **kwargs):
+    user_id = str(user_id)
+    if user_id not in data:
+        data[user_id] = {}
+    data[user_id].update(kwargs)
+    with open(DB_FILE, "w") as file:
+        json.dump(data, file, indent=4)
+
 @bot.message_handler(commands = ['sub'])
 def sub(message):
-    global subbed
-    if subbed:
+    if is_subscribed(message.from_user.id):
         bot.send_message(message.chat.id, "Ты и так уже подписана на эту рассылку)")
         return
     bot.send_message(message.chat.id, "Ураа! Ты подписалась на ежедневную рассылку случайной гей манхвы в 17:00!")
-    subbed = True
-    schedule.every().day.at("08:22").do(send_daily_manhwa, message)
+    update_user(message.from_user.id, subscribed=True)
+    schedule.every().day.at("17:00").do(send_daily_manhwa, message)
     threading.Thread(target=run_scheduler, daemon=True).start()
 
 @bot.message_handler(commands = ['unsub'])
 def unsub(message):
-    global subbed
-    if not subbed:
-        bot.send_message(message.chat.id, "Ты и так не подписана на эту рассылку(что кстати можно легко исправить 😇)")
+    if not is_subscribed(message.from_user.id):
+        bot.send_message(message.chat.id, "Ты и так не подписана на эту рассылку(что, кстати, можно легко исправить 😇)")
         return
     bot.send_message(message.chat.id, "Ну вот( Ты отписалась от ежедневной рассылки случайной гей манхвы..")
-    subbed = False
+    update_user(message.from_user.id, subscribed=False)
     schedule.clear()
-
 
 print("GaySpamMachine is running...")
 bot.infinity_polling()
