@@ -116,7 +116,7 @@ def update_user(user_id, **kwargs):
         json.dump(data, file, indent=4)
 
 def schedule_daily_manhwa(user_id):
-    job = schedule.every().day.at("20:00").do(send_daily_manhwa, int(user_id))
+    job = schedule.every().day.at("17:01").do(send_daily_manhwa, int(user_id)) # in prod this ends up scheduling the task 2 hours and 59 minutes later for some reason
     return job
 
 @bot.message_handler(commands = ['sub'])
