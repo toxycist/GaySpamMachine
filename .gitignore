@@ -1,3 +1,4 @@
 *.bat
 *.env
+.venv
 GaySpamMachineBot/user_states.json
